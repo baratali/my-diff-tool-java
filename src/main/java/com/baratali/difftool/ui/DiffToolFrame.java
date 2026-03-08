@@ -27,10 +27,8 @@ import javax.swing.event.CaretListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Element;
-import javax.swing.text.Highlighter;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
@@ -46,14 +44,10 @@ public final class DiffToolFrame extends JFrame {
     private final JLabel statusLabel = new JLabel("Paste text into both panes to compare.");
     private final DiffEngine diffEngine = new DiffEngine();
     private final Timer diffDebounceTimer;
-    private final Highlighter.HighlightPainter currentLinePainter =
-            new DefaultHighlighter.DefaultHighlightPainter(DiffColors.CURRENT_LINE);
 
     private boolean applyingHighlights;
     private boolean syncingScroll;
     private DiffResult currentResult = diffEngine.compare("", "");
-    private Object leftCurrentLineHighlight;
-    private Object rightCurrentLineHighlight;
     private JTextPane activePane;
 
     public DiffToolFrame(String editorFontFamily) {
@@ -351,36 +345,8 @@ public final class DiffToolFrame extends JFrame {
                 ? mapLine(currentResult.leftToRightLineMap(), sourceLine)
                 : mapLine(currentResult.rightToLeftLineMap(), sourceLine);
 
-        leftCurrentLineHighlight = replaceCurrentLineHighlight(
-                leftPane,
-                leftCurrentLineHighlight,
-                source == leftPane ? sourceLine : targetLine
-        );
-        rightCurrentLineHighlight = replaceCurrentLineHighlight(
-                rightPane,
-                rightCurrentLineHighlight,
-                source == rightPane ? sourceLine : targetLine
-        );
-    }
-
-    private Object replaceCurrentLineHighlight(JTextPane pane, Object existingHighlight, int line) {
-        Highlighter highlighter = pane.getHighlighter();
-        if (existingHighlight != null) {
-            highlighter.removeHighlight(existingHighlight);
-        }
-        if (line < 0 || getLineCount(pane) == 0) {
-            return null;
-        }
-        try {
-            Element root = pane.getDocument().getDefaultRootElement();
-            int clamped = Math.max(0, Math.min(line, root.getElementCount() - 1));
-            Element lineElement = root.getElement(clamped);
-            int start = lineElement.getStartOffset();
-            int end = Math.min(pane.getDocument().getLength(), Math.max(start + 1, lineElement.getEndOffset()));
-            return highlighter.addHighlight(start, end, currentLinePainter);
-        } catch (BadLocationException ignored) {
-            return null;
-        }
+        leftGutter.setHighlightedLine(source == leftPane ? sourceLine : targetLine);
+        rightGutter.setHighlightedLine(source == rightPane ? sourceLine : targetLine);
     }
 
     private int getCaretLine(JTextPane pane) {

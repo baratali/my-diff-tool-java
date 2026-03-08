@@ -18,6 +18,7 @@ public final class LineNumberGutter extends JComponent {
     private static final int HORIZONTAL_PADDING = 8;
 
     private final JTextPane textPane;
+    private int highlightedLine = -1;
 
     public LineNumberGutter(JTextPane textPane) {
         this.textPane = textPane;
@@ -46,6 +47,11 @@ public final class LineNumberGutter extends JComponent {
 
     public void refresh() {
         revalidate();
+        repaint();
+    }
+
+    public void setHighlightedLine(int highlightedLine) {
+        this.highlightedLine = highlightedLine;
         repaint();
     }
 
@@ -82,6 +88,11 @@ public final class LineNumberGutter extends JComponent {
                             textPane.modelToView2D(element.getStartOffset()).getBounds(),
                             this
                     );
+                    if (line == highlightedLine) {
+                        g2.setColor(DiffColors.CURRENT_LINE);
+                        g2.fillRoundRect(4, lineRect.y + 1, getWidth() - 8, Math.max(4, lineRect.height - 2), 8, 8);
+                        g2.setColor(getForeground());
+                    }
                     String label = Integer.toString(line + 1);
                     int x = availableWidth - metrics.stringWidth(label);
                     g2.drawString(label, x, lineRect.y + baselineAdjust);

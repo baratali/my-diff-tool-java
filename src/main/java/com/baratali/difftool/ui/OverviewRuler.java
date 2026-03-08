@@ -15,7 +15,7 @@ import java.util.function.DoubleConsumer;
 import javax.swing.JComponent;
 
 public final class OverviewRuler extends JComponent {
-    private static final int PREF_WIDTH = 22;
+    private static final int PREF_WIDTH = 7;
 
     private DiffResult diffResult;
     private double leftViewportStart;

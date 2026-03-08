@@ -14,8 +14,11 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import javax.swing.BorderFactory;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
@@ -34,8 +37,8 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
 public final class DiffToolFrame extends JFrame {
-    private final JTextPane leftPane = new JTextPane(new DefaultStyledDocument());
-    private final JTextPane rightPane = new JTextPane(new DefaultStyledDocument());
+    private final WrapTextPane leftPane = new WrapTextPane();
+    private final WrapTextPane rightPane = new WrapTextPane();
     private final JScrollPane leftScrollPane = new JScrollPane(leftPane);
     private final JScrollPane rightScrollPane = new JScrollPane(rightPane);
     private final LineNumberGutter leftGutter = new LineNumberGutter(leftPane);
@@ -56,6 +59,7 @@ public final class DiffToolFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setMinimumSize(new Dimension(1000, 700));
         setPreferredSize(new Dimension(1280, 820));
+        setJMenuBar(buildMenuBar());
         setContentPane(buildContent());
         pack();
         setLocationRelativeTo(null);
@@ -105,6 +109,16 @@ public final class DiffToolFrame extends JFrame {
         return root;
     }
 
+    private JMenuBar buildMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu viewMenu = new JMenu("View");
+        JCheckBoxMenuItem wrapItem = new JCheckBoxMenuItem("Line Wrap", true);
+        wrapItem.addActionListener(event -> setLineWrapEnabled(wrapItem.isSelected()));
+        viewMenu.add(wrapItem);
+        menuBar.add(viewMenu);
+        return menuBar;
+    }
+
     private JPanel wrapPane(String title, JScrollPane scrollPane) {
         JPanel panel = new JPanel(new BorderLayout(0, 6));
         JLabel label = new JLabel(title);
@@ -132,7 +146,17 @@ public final class DiffToolFrame extends JFrame {
         pane.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         pane.setMargin(new Insets(0, 0, 0, 0));
         pane.setMinimumSize(new Dimension(0, 0));
-        pane.setPreferredSize(new Dimension(0, 0));
+    }
+
+    private void setLineWrapEnabled(boolean enabled) {
+        leftPane.setLineWrapEnabled(enabled);
+        rightPane.setLineWrapEnabled(enabled);
+        leftPane.revalidate();
+        rightPane.revalidate();
+        leftPane.repaint();
+        rightPane.repaint();
+        leftGutter.refresh();
+        rightGutter.refresh();
     }
 
     private void installDocumentListeners() {
@@ -352,5 +376,22 @@ public final class DiffToolFrame extends JFrame {
     private int getCaretLine(JTextPane pane) {
         Element root = pane.getDocument().getDefaultRootElement();
         return root.getElementIndex(Math.max(0, pane.getCaretPosition()));
+    }
+
+    private static final class WrapTextPane extends JTextPane {
+        private boolean lineWrapEnabled = true;
+
+        private WrapTextPane() {
+            super(new DefaultStyledDocument());
+        }
+
+        private void setLineWrapEnabled(boolean lineWrapEnabled) {
+            this.lineWrapEnabled = lineWrapEnabled;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return lineWrapEnabled;
+        }
     }
 }

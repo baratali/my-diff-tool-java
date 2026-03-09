@@ -37,6 +37,8 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
 public final class DiffToolFrame extends JFrame {
+    private static final Dimension EDITOR_COLUMN_PREFERRED_SIZE = new Dimension(480, 640);
+
     private final WrapTextPane leftPane = new WrapTextPane();
     private final WrapTextPane rightPane = new WrapTextPane();
     private final JScrollPane leftScrollPane = new JScrollPane(leftPane);
@@ -125,7 +127,9 @@ public final class DiffToolFrame extends JFrame {
         label.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setMinimumSize(new Dimension(0, 0));
+        scrollPane.setPreferredSize(EDITOR_COLUMN_PREFERRED_SIZE);
         panel.setMinimumSize(new Dimension(0, 0));
+        panel.setPreferredSize(EDITOR_COLUMN_PREFERRED_SIZE);
         panel.add(label, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;

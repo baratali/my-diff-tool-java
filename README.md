@@ -2,6 +2,8 @@
 
 Simple Java desktop diff tool built with Swing and Maven.
 
+![Diff Tool screenshot](screenshot.png)
+
 ## Build
 
 Build the project:

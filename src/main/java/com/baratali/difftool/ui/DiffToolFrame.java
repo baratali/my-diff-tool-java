@@ -5,6 +5,7 @@ import com.baratali.difftool.diff.DiffResult;
 import com.baratali.difftool.diff.DiffStats;
 import com.baratali.difftool.diff.DiffType;
 import com.baratali.difftool.diff.HighlightSpan;
+import java.awt.Toolkit;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -13,15 +14,21 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
+import javax.swing.InputMap;
 import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
+import javax.swing.KeyStroke;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
@@ -38,6 +45,9 @@ import javax.swing.text.StyledDocument;
 
 public final class DiffToolFrame extends JFrame {
     private static final Dimension EDITOR_COLUMN_PREFERRED_SIZE = new Dimension(480, 640);
+    private static final int DEFAULT_EDITOR_FONT_SIZE = 14;
+    private static final int MIN_EDITOR_FONT_SIZE = 8;
+    private static final int MAX_EDITOR_FONT_SIZE = 36;
 
     private final WrapTextPane leftPane = new WrapTextPane();
     private final WrapTextPane rightPane = new WrapTextPane();
@@ -54,6 +64,7 @@ public final class DiffToolFrame extends JFrame {
     private boolean syncingScroll;
     private DiffResult currentResult = diffEngine.compare("", "");
     private JTextPane activePane;
+    private int editorFontSize = DEFAULT_EDITOR_FONT_SIZE;
 
     public DiffToolFrame(String editorFontFamily) {
         super("Diff Tool");
@@ -72,6 +83,7 @@ public final class DiffToolFrame extends JFrame {
         installDocumentListeners();
         installScrollSync();
         installCaretSync();
+        installZoomShortcuts();
         overviewRuler.setNavigationListener(this::scrollToFraction);
         recomputeDiff();
         activePane = leftPane;
@@ -115,7 +127,22 @@ public final class DiffToolFrame extends JFrame {
         JMenuBar menuBar = new JMenuBar();
         JMenu viewMenu = new JMenu("View");
         JCheckBoxMenuItem wrapItem = new JCheckBoxMenuItem("Line Wrap", true);
+        JMenuItem zoomInItem = new JMenuItem("Zoom In");
+        JMenuItem zoomOutItem = new JMenuItem("Zoom Out");
+        JMenuItem resetZoomItem = new JMenuItem("Actual Size");
+        int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+
+        zoomInItem.setAccelerator(KeyStroke.getKeyStroke('=', menuShortcutMask));
+        zoomInItem.addActionListener(event -> adjustEditorFontSize(1));
+        zoomOutItem.setAccelerator(KeyStroke.getKeyStroke('-', menuShortcutMask));
+        zoomOutItem.addActionListener(event -> adjustEditorFontSize(-1));
+        resetZoomItem.setAccelerator(KeyStroke.getKeyStroke('0', menuShortcutMask));
+        resetZoomItem.addActionListener(event -> resetEditorFontSize());
+        wrapItem.setAccelerator(KeyStroke.getKeyStroke('T', menuShortcutMask));
         wrapItem.addActionListener(event -> setLineWrapEnabled(wrapItem.isSelected()));
+        viewMenu.add(zoomInItem);
+        viewMenu.add(zoomOutItem);
+        viewMenu.add(resetZoomItem);
         viewMenu.add(wrapItem);
         menuBar.add(viewMenu);
         return menuBar;
@@ -136,7 +163,7 @@ public final class DiffToolFrame extends JFrame {
     }
 
     private void configureEditors(String editorFontFamily) {
-        Font editorFont = new Font(editorFontFamily, Font.PLAIN, 14);
+        Font editorFont = new Font(editorFontFamily, Font.PLAIN, editorFontSize);
         configureEditor(leftPane, editorFont);
         configureEditor(rightPane, editorFont);
         leftGutter.setFont(editorFont);
@@ -204,6 +231,69 @@ public final class DiffToolFrame extends JFrame {
         };
         leftPane.addCaretListener(listener);
         rightPane.addCaretListener(listener);
+    }
+
+    private void installZoomShortcuts() {
+        int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        InputMap inputMap = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = getRootPane().getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke('=', menuShortcutMask), "zoomIn");
+        inputMap.put(KeyStroke.getKeyStroke('+', menuShortcutMask), "zoomIn");
+        inputMap.put(KeyStroke.getKeyStroke('-', menuShortcutMask), "zoomOut");
+        inputMap.put(KeyStroke.getKeyStroke('0', menuShortcutMask), "resetZoom");
+
+        actionMap.put("zoomIn", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                adjustEditorFontSize(1);
+            }
+        });
+        actionMap.put("zoomOut", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                adjustEditorFontSize(-1);
+            }
+        });
+        actionMap.put("resetZoom", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                resetEditorFontSize();
+            }
+        });
+    }
+
+    private void adjustEditorFontSize(int delta) {
+        int nextSize = Math.max(MIN_EDITOR_FONT_SIZE, Math.min(MAX_EDITOR_FONT_SIZE, editorFontSize + delta));
+        if (nextSize == editorFontSize) {
+            return;
+        }
+        editorFontSize = nextSize;
+        applyEditorFontSize();
+    }
+
+    private void resetEditorFontSize() {
+        if (editorFontSize == DEFAULT_EDITOR_FONT_SIZE) {
+            return;
+        }
+        editorFontSize = DEFAULT_EDITOR_FONT_SIZE;
+        applyEditorFontSize();
+    }
+
+    private void applyEditorFontSize() {
+        Font leftFont = leftPane.getFont().deriveFont((float) editorFontSize);
+        Font rightFont = rightPane.getFont().deriveFont((float) editorFontSize);
+
+        leftPane.setFont(leftFont);
+        rightPane.setFont(rightFont);
+        leftGutter.setFont(leftFont);
+        rightGutter.setFont(rightFont);
+        leftPane.revalidate();
+        rightPane.revalidate();
+        leftPane.repaint();
+        rightPane.repaint();
+        refreshLineNumbers();
+        updateViewportIndicators();
     }
 
     private void queueDiff() {

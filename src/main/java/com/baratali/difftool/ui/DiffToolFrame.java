@@ -251,6 +251,11 @@ public final class DiffToolFrame extends JFrame {
         }
         syncingScroll = true;
         try {
+            if (sourcePane.getVisibleRect().y == 0) {
+                getScrollPane(targetPane).getViewport().setViewPosition(new Point(0, 0));
+                updateViewportIndicators();
+                return;
+            }
             int sourceLine = getVisibleTopLine(sourcePane);
             int mappedLine = sourcePane == leftPane
                     ? mapLine(currentResult.leftToRightLineMap(), sourceLine)
@@ -286,6 +291,10 @@ public final class DiffToolFrame extends JFrame {
             pane.scrollRectToVisible(new Rectangle(0, rect.y, 1, pane.getVisibleRect().height));
         } catch (BadLocationException ignored) {
         }
+    }
+
+    private JScrollPane getScrollPane(JTextPane pane) {
+        return pane == leftPane ? leftScrollPane : rightScrollPane;
     }
 
     private int mapLine(int[] mapping, int line) {

@@ -39,6 +39,9 @@ jpackage \
   --main-jar my-diff-tool-java-1.0-SNAPSHOT.jar \
   --main-class com.baratali.difftool.DiffToolApp \
   --type app-image
+
+rm -rf ~/Applications/Diff\ Tool.app
+mv Diff\ Tool.app ~/Applications/
 ```
 
 This produces a native app bundle with the proper application name in the Dock.

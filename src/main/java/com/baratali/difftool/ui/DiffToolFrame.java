@@ -61,7 +61,8 @@ public final class DiffToolFrame extends JFrame {
     private final LineNumberGutter leftGutter = new LineNumberGutter(leftPane);
     private final LineNumberGutter rightGutter = new LineNumberGutter(rightPane);
     private final OverviewRuler overviewRuler = new OverviewRuler();
-    private final JLabel statusLabel = new JLabel("Paste text into both panes to compare.");
+    private final JLabel messageLabel = new JLabel("Paste text into both panes to compare.");
+    private final JLabel statsLabel = new JLabel("Added: 0   Removed: 0   Changed: 0");
     private final JButton previousDiffButton = new JButton("Previous Diff");
     private final JButton nextDiffButton = new JButton("Next Diff");
     private final DiffEngine diffEngine = new DiffEngine();
@@ -130,12 +131,17 @@ public final class DiffToolFrame extends JFrame {
         gbc.insets = new Insets(0, 0, 0, 0);
         editors.add(wrapPane("Modified", rightScrollPane), gbc);
 
-        statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        JPanel footer = new JPanel(new BorderLayout(8, 0));
+        messageLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        messageLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        statsLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        statsLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        footer.add(messageLabel, BorderLayout.CENTER);
+        footer.add(statsLabel, BorderLayout.EAST);
 
         root.add(toolbar, BorderLayout.NORTH);
         root.add(editors, BorderLayout.CENTER);
-        root.add(statusLabel, BorderLayout.SOUTH);
+        root.add(footer, BorderLayout.SOUTH);
         return root;
     }
 
@@ -327,13 +333,13 @@ public final class DiffToolFrame extends JFrame {
             pane.setText(text);
             pane.requestFocusInWindow();
             pane.setCaretPosition(0);
-            statusLabel.setText("Loaded clipboard text into " + (pane == leftPane ? "Original" : "Modified") + " pane.");
+            messageLabel.setText("Loaded clipboard text into " + (pane == leftPane ? "Original" : "Modified") + " pane.");
         } catch (UnsupportedFlavorException | IOException ex) {
             Toolkit.getDefaultToolkit().beep();
-            statusLabel.setText("Clipboard does not contain text.");
+            messageLabel.setText("Clipboard does not contain text.");
         } catch (IllegalStateException ex) {
             Toolkit.getDefaultToolkit().beep();
-            statusLabel.setText("Clipboard is currently unavailable.");
+            messageLabel.setText("Clipboard is currently unavailable.");
         }
     }
 
@@ -350,7 +356,7 @@ public final class DiffToolFrame extends JFrame {
 
         if (target == null) {
             Toolkit.getDefaultToolkit().beep();
-            statusLabel.setText(direction > 0 ? "Already at the last diff." : "Already at the first diff.");
+            messageLabel.setText(direction > 0 ? "Already at the last diff." : "Already at the first diff.");
             return;
         }
 
@@ -383,7 +389,7 @@ public final class DiffToolFrame extends JFrame {
         scrollPaneToLine(leftPane, clampDiffLine(block.leftStartLine(), leftPane));
         scrollPaneToLine(rightPane, clampDiffLine(block.rightStartLine(), rightPane));
         updateViewportIndicators();
-        statusLabel.setText("Jumped to " + block.type().name().toLowerCase() + " diff.");
+        messageLabel.setText("Jumped to " + block.type().name().toLowerCase() + " diff.");
     }
 
     private int clampDiffLine(int line, JTextPane pane) {
@@ -552,7 +558,7 @@ public final class DiffToolFrame extends JFrame {
     }
 
     private void updateStatus(DiffStats stats) {
-        statusLabel.setText(String.format(
+        statsLabel.setText(String.format(
                 "Added: %d   Removed: %d   Changed: %d",
                 stats.addedLines(),
                 stats.removedLines(),

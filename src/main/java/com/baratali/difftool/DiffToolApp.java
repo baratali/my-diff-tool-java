@@ -9,12 +9,16 @@ import java.awt.RenderingHints;
 import java.awt.Taskbar;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
+import java.util.Enumeration;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
+import javax.swing.UIDefaults;
 import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
 
 public final class DiffToolApp {
     private static final String APP_NAME = "Diff Tool";
+    private static final int UI_FONT_SIZE = 14;
 
     static {
         configureApplicationIdentity();
@@ -26,7 +30,9 @@ public final class DiffToolApp {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             installSystemLookAndFeel();
-            DiffToolFrame frame = new DiffToolFrame(selectEditorFontFamily());
+            String fontFamily = selectIosevkaFontFamily();
+            installGlobalFont(fontFamily, UI_FONT_SIZE);
+            DiffToolFrame frame = new DiffToolFrame(fontFamily);
             Image icon = createAppIcon();
             frame.setIconImage(icon);
             installTaskbarIcon(icon);
@@ -48,7 +54,7 @@ public final class DiffToolApp {
         }
     }
 
-    private static String selectEditorFontFamily() {
+    private static String selectIosevkaFontFamily() {
         String[] families = GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getAvailableFontFamilyNames();
         return Arrays.stream(families)
@@ -56,6 +62,18 @@ public final class DiffToolApp {
                         || name.toLowerCase().startsWith("iosevka "))
                 .findFirst()
                 .orElse("Monospaced");
+    }
+
+    private static void installGlobalFont(String fontFamily, int fontSize) {
+        UIDefaults defaults = UIManager.getDefaults();
+        Enumeration<Object> keys = defaults.keys();
+        while (keys.hasMoreElements()) {
+            Object key = keys.nextElement();
+            Object value = defaults.get(key);
+            if (value instanceof FontUIResource font) {
+                defaults.put(key, new FontUIResource(fontFamily, font.getStyle(), fontSize));
+            }
+        }
     }
 
     private static void installTaskbarIcon(Image icon) {

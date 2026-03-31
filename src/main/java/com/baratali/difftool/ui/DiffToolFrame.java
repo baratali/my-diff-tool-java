@@ -1,5 +1,6 @@
 package com.baratali.difftool.ui;
 
+import com.baratali.difftool.diff.DiffBlock;
 import com.baratali.difftool.diff.DiffEngine;
 import com.baratali.difftool.diff.DiffResult;
 import com.baratali.difftool.diff.DiffStats;
@@ -61,6 +62,8 @@ public final class DiffToolFrame extends JFrame {
     private final LineNumberGutter rightGutter = new LineNumberGutter(rightPane);
     private final OverviewRuler overviewRuler = new OverviewRuler();
     private final JLabel statusLabel = new JLabel("Paste text into both panes to compare.");
+    private final JButton previousDiffButton = new JButton("Previous Diff");
+    private final JButton nextDiffButton = new JButton("Next Diff");
     private final DiffEngine diffEngine = new DiffEngine();
     private final Timer diffDebounceTimer;
 
@@ -98,6 +101,14 @@ public final class DiffToolFrame extends JFrame {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
+        JPanel toolbar = new JPanel(new BorderLayout());
+        JPanel navigationButtons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0));
+        previousDiffButton.addActionListener(event -> navigateDiff(-1));
+        nextDiffButton.addActionListener(event -> navigateDiff(1));
+        navigationButtons.add(previousDiffButton);
+        navigationButtons.add(nextDiffButton);
+        toolbar.add(navigationButtons, BorderLayout.WEST);
+
         JPanel editors = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(0, 0, 0, 8);
@@ -122,6 +133,7 @@ public final class DiffToolFrame extends JFrame {
         statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
 
+        root.add(toolbar, BorderLayout.NORTH);
         root.add(editors, BorderLayout.CENTER);
         root.add(statusLabel, BorderLayout.SOUTH);
         return root;
@@ -325,6 +337,59 @@ public final class DiffToolFrame extends JFrame {
         }
     }
 
+    private void navigateDiff(int direction) {
+        if (currentResult == null || currentResult.blocks().isEmpty()) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+
+        int currentLine = Math.max(getVisibleTopLine(leftPane), getVisibleTopLine(rightPane));
+        DiffBlock target = direction > 0
+                ? findNextBlock(currentLine)
+                : findPreviousBlock(currentLine);
+
+        if (target == null) {
+            Toolkit.getDefaultToolkit().beep();
+            statusLabel.setText(direction > 0 ? "Already at the last diff." : "Already at the first diff.");
+            return;
+        }
+
+        scrollToDiffBlock(target);
+    }
+
+    private DiffBlock findNextBlock(int currentLine) {
+        for (DiffBlock block : currentResult.blocks()) {
+            int startLine = Math.max(block.leftStartLine(), block.rightStartLine());
+            if (startLine > currentLine) {
+                return block;
+            }
+        }
+        return null;
+    }
+
+    private DiffBlock findPreviousBlock(int currentLine) {
+        DiffBlock candidate = null;
+        for (DiffBlock block : currentResult.blocks()) {
+            int startLine = Math.max(block.leftStartLine(), block.rightStartLine());
+            if (startLine >= currentLine) {
+                break;
+            }
+            candidate = block;
+        }
+        return candidate;
+    }
+
+    private void scrollToDiffBlock(DiffBlock block) {
+        scrollPaneToLine(leftPane, clampDiffLine(block.leftStartLine(), leftPane));
+        scrollPaneToLine(rightPane, clampDiffLine(block.rightStartLine(), rightPane));
+        updateViewportIndicators();
+        statusLabel.setText("Jumped to " + block.type().name().toLowerCase() + " diff.");
+    }
+
+    private int clampDiffLine(int line, JTextPane pane) {
+        return Math.max(0, Math.min(line, Math.max(getLineCount(pane) - 1, 0)));
+    }
+
     private void queueDiff() {
         if (applyingHighlights) {
             return;
@@ -346,7 +411,14 @@ public final class DiffToolFrame extends JFrame {
         overviewRuler.setDiffResult(currentResult);
         updateViewportIndicators();
         updateStatus(currentResult.stats());
+        updateDiffNavigationButtons();
         updateCurrentLineHighlights();
+    }
+
+    private void updateDiffNavigationButtons() {
+        boolean hasDiffs = currentResult != null && !currentResult.blocks().isEmpty();
+        previousDiffButton.setEnabled(hasDiffs);
+        nextDiffButton.setEnabled(hasDiffs);
     }
 
     private void resetStyles(JTextPane pane) {

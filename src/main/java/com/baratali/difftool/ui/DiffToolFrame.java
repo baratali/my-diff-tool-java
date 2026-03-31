@@ -6,6 +6,8 @@ import com.baratali.difftool.diff.DiffStats;
 import com.baratali.difftool.diff.DiffType;
 import com.baratali.difftool.diff.HighlightSpan;
 import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -14,9 +16,11 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.io.IOException;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.InputMap;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
@@ -150,14 +154,19 @@ public final class DiffToolFrame extends JFrame {
 
     private JPanel wrapPane(String title, JScrollPane scrollPane) {
         JPanel panel = new JPanel(new BorderLayout(0, 6));
+        JPanel header = new JPanel(new BorderLayout(8, 0));
         JLabel label = new JLabel(title);
+        JButton pasteButton = new JButton("Paste from Clipboard");
         label.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
+        pasteButton.addActionListener(event -> pasteFromClipboard(scrollPane == leftScrollPane ? leftPane : rightPane));
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setMinimumSize(new Dimension(0, 0));
         scrollPane.setPreferredSize(EDITOR_COLUMN_PREFERRED_SIZE);
         panel.setMinimumSize(new Dimension(0, 0));
         panel.setPreferredSize(EDITOR_COLUMN_PREFERRED_SIZE);
-        panel.add(label, BorderLayout.NORTH);
+        header.add(label, BorderLayout.WEST);
+        header.add(pasteButton, BorderLayout.EAST);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
     }
@@ -294,6 +303,26 @@ public final class DiffToolFrame extends JFrame {
         rightPane.repaint();
         refreshLineNumbers();
         updateViewportIndicators();
+    }
+
+    private void pasteFromClipboard(JTextPane pane) {
+        try {
+            Object clipboardContents = Toolkit.getDefaultToolkit()
+                    .getSystemClipboard()
+                    .getData(DataFlavor.stringFlavor);
+            String text = clipboardContents == null ? "" : clipboardContents.toString();
+            pane.setText("");
+            pane.setText(text);
+            pane.requestFocusInWindow();
+            pane.setCaretPosition(0);
+            statusLabel.setText("Loaded clipboard text into " + (pane == leftPane ? "Original" : "Modified") + " pane.");
+        } catch (UnsupportedFlavorException | IOException ex) {
+            Toolkit.getDefaultToolkit().beep();
+            statusLabel.setText("Clipboard does not contain text.");
+        } catch (IllegalStateException ex) {
+            Toolkit.getDefaultToolkit().beep();
+            statusLabel.setText("Clipboard is currently unavailable.");
+        }
     }
 
     private void queueDiff() {

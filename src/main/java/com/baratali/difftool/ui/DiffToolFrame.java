@@ -48,6 +48,7 @@ import javax.swing.text.Element;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoManager;
 
@@ -159,6 +160,7 @@ public final class DiffToolFrame extends JFrame {
         JMenu editMenu = new JMenu("Edit");
         JMenu viewMenu = new JMenu("View");
         JMenuItem undoItem = new JMenuItem("Undo");
+        JMenuItem redoItem = new JMenuItem("Redo");
         JCheckBoxMenuItem wrapItem = new JCheckBoxMenuItem("Line Wrap", true);
         JMenuItem zoomInItem = new JMenuItem("Zoom In");
         JMenuItem zoomOutItem = new JMenuItem("Zoom Out");
@@ -167,7 +169,10 @@ public final class DiffToolFrame extends JFrame {
 
         undoItem.setAccelerator(KeyStroke.getKeyStroke('Z', menuShortcutMask));
         undoItem.addActionListener(event -> undoActivePane());
+        redoItem.setAccelerator(KeyStroke.getKeyStroke('Z', menuShortcutMask | java.awt.event.InputEvent.SHIFT_DOWN_MASK));
+        redoItem.addActionListener(event -> redoActivePane());
         editMenu.add(undoItem);
+        editMenu.add(redoItem);
         zoomInItem.setAccelerator(KeyStroke.getKeyStroke('=', menuShortcutMask));
         zoomInItem.addActionListener(event -> adjustEditorFontSize(1));
         zoomOutItem.setAccelerator(KeyStroke.getKeyStroke('-', menuShortcutMask));
@@ -297,6 +302,11 @@ public final class DiffToolFrame extends JFrame {
     private void installUndoShortcut(JTextPane pane) {
         int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
         pane.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke('Z', menuShortcutMask), "undoTextEdit");
+        pane.getInputMap(JComponent.WHEN_FOCUSED).put(
+                KeyStroke.getKeyStroke('Z', menuShortcutMask | java.awt.event.InputEvent.SHIFT_DOWN_MASK),
+                "redoTextEdit"
+        );
+        pane.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke('Y', menuShortcutMask), "redoTextEdit");
         pane.getActionMap().put("undoTextEdit", new AbstractAction() {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent event) {
@@ -304,10 +314,17 @@ public final class DiffToolFrame extends JFrame {
                 undoActivePane();
             }
         });
+        pane.getActionMap().put("redoTextEdit", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                activePane = pane;
+                redoActivePane();
+            }
+        });
     }
 
     private void undoActivePane() {
-        UndoManager undoManager = activePane == rightPane ? rightUndoManager : leftUndoManager;
+        UndoManager undoManager = getActiveUndoManager();
         if (!undoManager.canUndo()) {
             Toolkit.getDefaultToolkit().beep();
             return;
@@ -318,6 +335,24 @@ public final class DiffToolFrame extends JFrame {
         } catch (CannotUndoException ex) {
             Toolkit.getDefaultToolkit().beep();
         }
+    }
+
+    private void redoActivePane() {
+        UndoManager undoManager = getActiveUndoManager();
+        if (!undoManager.canRedo()) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+
+        try {
+            undoManager.redo();
+        } catch (CannotRedoException ex) {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }
+
+    private UndoManager getActiveUndoManager() {
+        return activePane == rightPane ? rightUndoManager : leftUndoManager;
     }
 
     private void installScrollSync() {

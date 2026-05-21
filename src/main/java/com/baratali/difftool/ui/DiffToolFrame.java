@@ -48,6 +48,8 @@ import javax.swing.text.Element;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.undo.CannotUndoException;
+import javax.swing.undo.UndoManager;
 
 public final class DiffToolFrame extends JFrame {
     private static final Dimension EDITOR_COLUMN_PREFERRED_SIZE = new Dimension(480, 640);
@@ -71,6 +73,8 @@ public final class DiffToolFrame extends JFrame {
     private final JCheckBoxMenuItem normalizeLineEndingsItem = new JCheckBoxMenuItem("Normalize Line Endings", true);
     private final DiffEngine diffEngine = new DiffEngine();
     private final Timer diffDebounceTimer;
+    private final UndoManager leftUndoManager = new UndoManager();
+    private final UndoManager rightUndoManager = new UndoManager();
 
     private boolean applyingHighlights;
     private boolean syncingScroll;
@@ -93,6 +97,7 @@ public final class DiffToolFrame extends JFrame {
         diffDebounceTimer.setRepeats(false);
 
         installDocumentListeners();
+        installUndoSupport();
         installScrollSync();
         installCaretSync();
         installZoomShortcuts();
@@ -151,13 +156,18 @@ public final class DiffToolFrame extends JFrame {
 
     private JMenuBar buildMenuBar() {
         JMenuBar menuBar = new JMenuBar();
+        JMenu editMenu = new JMenu("Edit");
         JMenu viewMenu = new JMenu("View");
+        JMenuItem undoItem = new JMenuItem("Undo");
         JCheckBoxMenuItem wrapItem = new JCheckBoxMenuItem("Line Wrap", true);
         JMenuItem zoomInItem = new JMenuItem("Zoom In");
         JMenuItem zoomOutItem = new JMenuItem("Zoom Out");
         JMenuItem resetZoomItem = new JMenuItem("Actual Size");
         int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
+        undoItem.setAccelerator(KeyStroke.getKeyStroke('Z', menuShortcutMask));
+        undoItem.addActionListener(event -> undoActivePane());
+        editMenu.add(undoItem);
         zoomInItem.setAccelerator(KeyStroke.getKeyStroke('=', menuShortcutMask));
         zoomInItem.addActionListener(event -> adjustEditorFontSize(1));
         zoomOutItem.setAccelerator(KeyStroke.getKeyStroke('-', menuShortcutMask));
@@ -178,6 +188,7 @@ public final class DiffToolFrame extends JFrame {
         viewMenu.add(ignoreWhitespaceItem);
         viewMenu.add(ignoreCaseItem);
         viewMenu.add(normalizeLineEndingsItem);
+        menuBar.add(editMenu);
         menuBar.add(viewMenu);
         return menuBar;
     }
@@ -265,6 +276,48 @@ public final class DiffToolFrame extends JFrame {
         };
         leftPane.getDocument().addDocumentListener(listener);
         rightPane.getDocument().addDocumentListener(listener);
+    }
+
+    private void installUndoSupport() {
+        leftPane.getDocument().addUndoableEditListener(event -> {
+            if (!applyingHighlights) {
+                leftUndoManager.addEdit(event.getEdit());
+            }
+        });
+        rightPane.getDocument().addUndoableEditListener(event -> {
+            if (!applyingHighlights) {
+                rightUndoManager.addEdit(event.getEdit());
+            }
+        });
+
+        installUndoShortcut(leftPane);
+        installUndoShortcut(rightPane);
+    }
+
+    private void installUndoShortcut(JTextPane pane) {
+        int menuShortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        pane.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke('Z', menuShortcutMask), "undoTextEdit");
+        pane.getActionMap().put("undoTextEdit", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                activePane = pane;
+                undoActivePane();
+            }
+        });
+    }
+
+    private void undoActivePane() {
+        UndoManager undoManager = activePane == rightPane ? rightUndoManager : leftUndoManager;
+        if (!undoManager.canUndo()) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+
+        try {
+            undoManager.undo();
+        } catch (CannotUndoException ex) {
+            Toolkit.getDefaultToolkit().beep();
+        }
     }
 
     private void installScrollSync() {

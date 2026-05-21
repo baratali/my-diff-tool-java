@@ -3,15 +3,22 @@ package com.baratali.difftool.diff;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class DiffEngine {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\\S+|\\s+");
+    private static final Pattern COLLAPSIBLE_WHITESPACE_PATTERN = Pattern.compile("[ \\t]+");
 
     public DiffResult compare(String leftText, String rightText) {
-        List<LineToken> leftLines = splitLines(leftText);
-        List<LineToken> rightLines = splitLines(rightText);
+        return compare(leftText, rightText, DiffOptions.exact());
+    }
+
+    public DiffResult compare(String leftText, String rightText, DiffOptions options) {
+        DiffOptions activeOptions = options == null ? DiffOptions.exact() : options;
+        List<LineToken> leftLines = splitLines(leftText, activeOptions);
+        List<LineToken> rightLines = splitLines(rightText, activeOptions);
 
         List<LineEdit> edits = buildLineEdits(leftLines, rightLines);
         int[] leftMap = new int[leftLines.size()];
@@ -54,7 +61,7 @@ public final class DiffEngine {
                 case CHANGED -> {
                     changedLines += Math.max(leftCount, rightCount);
                     mapChangedRange(leftMap, rightMap, edit.leftStart, edit.leftEnd, edit.rightStart, edit.rightEnd);
-                    addChangedHighlights(leftHighlights, rightHighlights, leftLines, rightLines, edit);
+                    addChangedHighlights(leftHighlights, rightHighlights, leftLines, rightLines, edit, activeOptions);
                 }
             }
 
@@ -120,19 +127,20 @@ public final class DiffEngine {
             List<HighlightSpan> rightHighlights,
             List<LineToken> leftLines,
             List<LineToken> rightLines,
-            LineEdit edit
+            LineEdit edit,
+            DiffOptions options
     ) {
         int pairCount = Math.min(edit.leftEnd - edit.leftStart, edit.rightEnd - edit.rightStart);
         for (int i = 0; i < pairCount; i++) {
             LineToken left = leftLines.get(edit.leftStart + i);
             LineToken right = rightLines.get(edit.rightStart + i);
 
-            if (left.text().equals(right.text())) {
+            if (left.comparisonText().equals(right.comparisonText())) {
                 continue;
             }
 
-            List<TokenSpan> leftDiffs = tokenDiff(left.text(), right.text(), left.startOffset(), true);
-            List<TokenSpan> rightDiffs = tokenDiff(left.text(), right.text(), right.startOffset(), false);
+            List<TokenSpan> leftDiffs = tokenDiff(left.text(), right.text(), left.startOffset(), true, options);
+            List<TokenSpan> rightDiffs = tokenDiff(left.text(), right.text(), right.startOffset(), false, options);
 
             if (leftDiffs.isEmpty()) {
                 leftHighlights.add(new HighlightSpan(left.startOffset(), left.endOffset(), DiffType.CHANGED));
@@ -159,23 +167,29 @@ public final class DiffEngine {
         }
     }
 
-    private List<TokenSpan> tokenDiff(String leftText, String rightText, int baseOffset, boolean fromLeft) {
-        List<Token> sourceTokens = tokenizeInline(fromLeft ? leftText : rightText, baseOffset);
-        List<Token> otherTokens = tokenizeInline(fromLeft ? rightText : leftText, 0);
+    private List<TokenSpan> tokenDiff(
+            String leftText,
+            String rightText,
+            int baseOffset,
+            boolean fromLeft,
+            DiffOptions options
+    ) {
+        List<Token> sourceTokens = tokenizeInline(fromLeft ? leftText : rightText, baseOffset, options);
+        List<Token> otherTokens = tokenizeInline(fromLeft ? rightText : leftText, 0, options);
         if (sourceTokens.isEmpty()) {
             return Collections.emptyList();
         }
 
-        int[][] dp = buildLcsTable(sourceTokens.stream().map(Token::value).toList(),
-                otherTokens.stream().map(Token::value).toList());
+        int[][] dp = buildLcsTable(sourceTokens.stream().map(Token::comparisonValue).toList(),
+                otherTokens.stream().map(Token::comparisonValue).toList());
         List<TokenSpan> spans = new ArrayList<>();
         int i = 0;
         int j = 0;
         Integer pendingStart = null;
         int pendingEnd = -1;
         while (i < sourceTokens.size() && j < otherTokens.size()) {
-            String source = sourceTokens.get(i).value();
-            String other = otherTokens.get(j).value();
+            String source = sourceTokens.get(i).comparisonValue();
+            String other = otherTokens.get(j).comparisonValue();
             if (source.equals(other)) {
                 if (pendingStart != null) {
                     spans.add(new TokenSpan(pendingStart, pendingEnd));
@@ -280,8 +294,8 @@ public final class DiffEngine {
     }
 
     private List<LineEdit> buildLineEdits(List<LineToken> leftLines, List<LineToken> rightLines) {
-        List<String> leftTexts = leftLines.stream().map(LineToken::text).toList();
-        List<String> rightTexts = rightLines.stream().map(LineToken::text).toList();
+        List<String> leftTexts = leftLines.stream().map(LineToken::comparisonText).toList();
+        List<String> rightTexts = rightLines.stream().map(LineToken::comparisonText).toList();
         int[][] dp = buildLcsTable(leftTexts, rightTexts);
         List<RawEdit> rawEdits = new ArrayList<>();
         int i = 0;
@@ -370,7 +384,7 @@ public final class DiffEngine {
         return dp;
     }
 
-    private List<LineToken> splitLines(String text) {
+    private List<LineToken> splitLines(String text, DiffOptions options) {
         List<LineToken> lines = new ArrayList<>();
         if (text.isEmpty()) {
             return lines;
@@ -378,22 +392,69 @@ public final class DiffEngine {
         int start = 0;
         int lineIndex = 0;
         while (start < text.length()) {
-            int newline = text.indexOf('\n', start);
-            int end = newline >= 0 ? newline + 1 : text.length();
-            lines.add(new LineToken(lineIndex++, text.substring(start, end), start, end));
+            int end = findLineEnd(text, start);
+            String lineText = text.substring(start, end);
+            lines.add(new LineToken(
+                    lineIndex++,
+                    lineText,
+                    normalizeComparisonText(lineText, options),
+                    start,
+                    end
+            ));
             start = end;
         }
-        if (text.endsWith("\n")) {
-            lines.add(new LineToken(lineIndex, "", text.length(), text.length()));
+        if (endsWithLineBreak(text)) {
+            lines.add(new LineToken(lineIndex, "", "", text.length(), text.length()));
         }
         return lines;
     }
 
-    private List<Token> tokenizeInline(String text, int baseOffset) {
+    private int findLineEnd(String text, int start) {
+        int index = start;
+        while (index < text.length()) {
+            char current = text.charAt(index);
+            if (current == '\n') {
+                return index + 1;
+            }
+            if (current == '\r') {
+                return index + 1 < text.length() && text.charAt(index + 1) == '\n' ? index + 2 : index + 1;
+            }
+            index++;
+        }
+        return text.length();
+    }
+
+    private boolean endsWithLineBreak(String text) {
+        return text.endsWith("\n") || text.endsWith("\r");
+    }
+
+    private String normalizeComparisonText(String text, DiffOptions options) {
+        String normalized = options.normalizeLineEndings()
+                ? text.replace("\r\n", "\n").replace('\r', '\n')
+                : text;
+        if (options.ignoreWhitespace()) {
+            normalized = COLLAPSIBLE_WHITESPACE_PATTERN.matcher(normalized.trim()).replaceAll(" ");
+        }
+        if (options.ignoreCase()) {
+            normalized = normalized.toLowerCase(Locale.ROOT);
+        }
+        return normalized;
+    }
+
+    private List<Token> tokenizeInline(String text, int baseOffset, DiffOptions options) {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = TOKEN_PATTERN.matcher(text);
         while (matcher.find()) {
-            tokens.add(new Token(matcher.group(), baseOffset + matcher.start(), baseOffset + matcher.end()));
+            String value = matcher.group();
+            if (options.ignoreWhitespace() && value.isBlank()) {
+                continue;
+            }
+            tokens.add(new Token(
+                    value,
+                    normalizeComparisonText(value, options),
+                    baseOffset + matcher.start(),
+                    baseOffset + matcher.end()
+            ));
         }
         return tokens;
     }
@@ -404,7 +465,7 @@ public final class DiffEngine {
     private record LineEdit(DiffType type, int leftStart, int leftEnd, int rightStart, int rightEnd) {
     }
 
-    private record Token(String value, int startOffset, int endOffset) {
+    private record Token(String value, String comparisonValue, int startOffset, int endOffset) {
     }
 
     private record TokenSpan(int startOffset, int endOffset) {

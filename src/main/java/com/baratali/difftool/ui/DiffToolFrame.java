@@ -2,6 +2,7 @@ package com.baratali.difftool.ui;
 
 import com.baratali.difftool.diff.DiffBlock;
 import com.baratali.difftool.diff.DiffEngine;
+import com.baratali.difftool.diff.DiffOptions;
 import com.baratali.difftool.diff.DiffResult;
 import com.baratali.difftool.diff.DiffStats;
 import com.baratali.difftool.diff.DiffType;
@@ -65,6 +66,9 @@ public final class DiffToolFrame extends JFrame {
     private final JLabel statsLabel = new JLabel("Added: 0   Removed: 0   Changed: 0");
     private final JButton previousDiffButton = new JButton("Previous Diff");
     private final JButton nextDiffButton = new JButton("Next Diff");
+    private final JCheckBoxMenuItem ignoreWhitespaceItem = new JCheckBoxMenuItem("Ignore Whitespace");
+    private final JCheckBoxMenuItem ignoreCaseItem = new JCheckBoxMenuItem("Ignore Case");
+    private final JCheckBoxMenuItem normalizeLineEndingsItem = new JCheckBoxMenuItem("Normalize Line Endings", true);
     private final DiffEngine diffEngine = new DiffEngine();
     private final Timer diffDebounceTimer;
 
@@ -162,10 +166,18 @@ public final class DiffToolFrame extends JFrame {
         resetZoomItem.addActionListener(event -> resetEditorFontSize());
         wrapItem.setAccelerator(KeyStroke.getKeyStroke('T', menuShortcutMask));
         wrapItem.addActionListener(event -> setLineWrapEnabled(wrapItem.isSelected()));
+        ignoreWhitespaceItem.addActionListener(event -> updateComparisonOptions());
+        ignoreCaseItem.addActionListener(event -> updateComparisonOptions());
+        normalizeLineEndingsItem.addActionListener(event -> updateComparisonOptions());
         viewMenu.add(zoomInItem);
         viewMenu.add(zoomOutItem);
         viewMenu.add(resetZoomItem);
+        viewMenu.addSeparator();
         viewMenu.add(wrapItem);
+        viewMenu.addSeparator();
+        viewMenu.add(ignoreWhitespaceItem);
+        viewMenu.add(ignoreCaseItem);
+        viewMenu.add(normalizeLineEndingsItem);
         menuBar.add(viewMenu);
         return menuBar;
     }
@@ -215,6 +227,20 @@ public final class DiffToolFrame extends JFrame {
         rightPane.repaint();
         leftGutter.refresh();
         rightGutter.refresh();
+    }
+
+    private void updateComparisonOptions() {
+        diffDebounceTimer.stop();
+        recomputeDiff();
+        messageLabel.setText("Updated comparison options.");
+    }
+
+    private DiffOptions currentDiffOptions() {
+        return new DiffOptions(
+                ignoreWhitespaceItem.isSelected(),
+                ignoreCaseItem.isSelected(),
+                normalizeLineEndingsItem.isSelected()
+        );
     }
 
     private void installDocumentListeners() {
@@ -404,7 +430,7 @@ public final class DiffToolFrame extends JFrame {
     }
 
     private void recomputeDiff() {
-        currentResult = diffEngine.compare(leftPane.getText(), rightPane.getText());
+        currentResult = diffEngine.compare(leftPane.getText(), rightPane.getText(), currentDiffOptions());
         applyingHighlights = true;
         try {
             resetStyles(leftPane);

@@ -11,18 +11,24 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.io.IOException;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.Icon;
 import javax.swing.InputMap;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
@@ -57,6 +63,8 @@ public final class DiffToolFrame extends JFrame {
     private static final int DEFAULT_EDITOR_FONT_SIZE = 14;
     private static final int MIN_EDITOR_FONT_SIZE = 8;
     private static final int MAX_EDITOR_FONT_SIZE = 36;
+    private static final Icon IDENTICAL_STATUS_ICON = new StatusIcon(new Color(37, 135, 77), true);
+    private static final Icon DIFFERENT_STATUS_ICON = new StatusIcon(new Color(184, 82, 35), false);
 
     private final WrapTextPane leftPane = new WrapTextPane();
     private final WrapTextPane rightPane = new WrapTextPane();
@@ -146,6 +154,7 @@ public final class DiffToolFrame extends JFrame {
         messageLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
         statsLabel.setHorizontalAlignment(SwingConstants.RIGHT);
         statsLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        statsLabel.setIconTextGap(8);
         footer.add(messageLabel, BorderLayout.CENTER);
         footer.add(statsLabel, BorderLayout.EAST);
 
@@ -672,6 +681,11 @@ public final class DiffToolFrame extends JFrame {
     }
 
     private void updateStatus(DiffStats stats) {
+        boolean buffersAreIdentical = stats.addedLines() == 0
+                && stats.removedLines() == 0
+                && stats.changedLines() == 0;
+        statsLabel.setIcon(buffersAreIdentical ? IDENTICAL_STATUS_ICON : DIFFERENT_STATUS_ICON);
+        statsLabel.setToolTipText(buffersAreIdentical ? "Buffers are identical" : "Buffers are different");
         statsLabel.setText(String.format(
                 "Added: %d   Removed: %d   Changed: %d",
                 stats.addedLines(),
@@ -716,6 +730,53 @@ public final class DiffToolFrame extends JFrame {
         @Override
         public boolean getScrollableTracksViewportWidth() {
             return lineWrapEnabled;
+        }
+    }
+
+    private static final class StatusIcon implements Icon {
+        private static final int SIZE = 14;
+
+        private final Color color;
+        private final boolean identical;
+
+        private StatusIcon(Color color, boolean identical) {
+            this.color = color;
+            this.identical = identical;
+        }
+
+        @Override
+        public int getIconWidth() {
+            return SIZE;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return SIZE;
+        }
+
+        @Override
+        public void paintIcon(Component component, Graphics graphics, int x, int y) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.fillOval(x, y, SIZE, SIZE);
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new java.awt.BasicStroke(
+                        2.0f,
+                        java.awt.BasicStroke.CAP_ROUND,
+                        java.awt.BasicStroke.JOIN_ROUND
+                ));
+                if (identical) {
+                    g2.drawLine(x + 4, y + 7, x + 6, y + 10);
+                    g2.drawLine(x + 6, y + 10, x + 10, y + 4);
+                } else {
+                    g2.drawLine(x + 7, y + 3, x + 7, y + 8);
+                    g2.drawLine(x + 7, y + 11, x + 7, y + 11);
+                }
+            } finally {
+                g2.dispose();
+            }
         }
     }
 }

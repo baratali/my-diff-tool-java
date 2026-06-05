@@ -63,6 +63,8 @@ public final class DiffToolFrame extends JFrame {
     private static final int DEFAULT_EDITOR_FONT_SIZE = 14;
     private static final int MIN_EDITOR_FONT_SIZE = 8;
     private static final int MAX_EDITOR_FONT_SIZE = 36;
+    private static final Dimension PASTE_BUTTON_SIZE = new Dimension(220, 40);
+    private static final int NAVIGATION_BUTTON_HEIGHT = 36;
     private static final Icon IDENTICAL_STATUS_ICON = new StatusIcon(new Color(37, 135, 77), true);
     private static final Icon DIFFERENT_STATUS_ICON = new StatusIcon(new Color(184, 82, 35), false);
 
@@ -75,8 +77,8 @@ public final class DiffToolFrame extends JFrame {
     private final OverviewRuler overviewRuler = new OverviewRuler();
     private final JLabel messageLabel = new JLabel("Paste text into both panes to compare.");
     private final JLabel statsLabel = new JLabel("Added: 0   Removed: 0   Changed: 0");
-    private final JButton previousDiffButton = new JButton("Previous Diff");
-    private final JButton nextDiffButton = new JButton("Next Diff");
+    private final JButton previousDiffButton = new JButton("⬅️ Previous Diff");
+    private final JButton nextDiffButton = new JButton("Next Diff ➡️");
     private final JCheckBoxMenuItem ignoreWhitespaceItem = new JCheckBoxMenuItem("Ignore Whitespace");
     private final JCheckBoxMenuItem ignoreCaseItem = new JCheckBoxMenuItem("Ignore Case");
     private final JCheckBoxMenuItem normalizeLineEndingsItem = new JCheckBoxMenuItem("Normalize Line Endings", true);
@@ -122,6 +124,8 @@ public final class DiffToolFrame extends JFrame {
 
         JPanel toolbar = new JPanel(new BorderLayout());
         JPanel navigationButtons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0));
+        configureNavigationButton(previousDiffButton);
+        configureNavigationButton(nextDiffButton);
         previousDiffButton.addActionListener(event -> navigateDiff(-1));
         nextDiffButton.addActionListener(event -> navigateDiff(1));
         navigationButtons.add(previousDiffButton);
@@ -162,6 +166,14 @@ public final class DiffToolFrame extends JFrame {
         root.add(editors, BorderLayout.CENTER);
         root.add(footer, BorderLayout.SOUTH);
         return root;
+    }
+
+    private void configureNavigationButton(JButton button) {
+        button.setMargin(new Insets(6, 12, 6, 12));
+        Dimension preferredSize = button.getPreferredSize();
+        Dimension tallerSize = new Dimension(preferredSize.width, NAVIGATION_BUTTON_HEIGHT);
+        button.setMinimumSize(tallerSize);
+        button.setPreferredSize(tallerSize);
     }
 
     private JMenuBar buildMenuBar() {
@@ -211,8 +223,11 @@ public final class DiffToolFrame extends JFrame {
         JPanel panel = new JPanel(new BorderLayout(0, 6));
         JPanel header = new JPanel(new BorderLayout(8, 0));
         JLabel label = new JLabel(title);
-        JButton pasteButton = new JButton("Paste from Clipboard");
+        JButton pasteButton = new JButton("📋 Paste from Clipboard");
         label.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
+        pasteButton.setMargin(new Insets(8, 18, 8, 18));
+        pasteButton.setMinimumSize(PASTE_BUTTON_SIZE);
+        pasteButton.setPreferredSize(PASTE_BUTTON_SIZE);
         pasteButton.addActionListener(event -> pasteFromClipboard(scrollPane == leftScrollPane ? leftPane : rightPane));
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setMinimumSize(new Dimension(0, 0));
